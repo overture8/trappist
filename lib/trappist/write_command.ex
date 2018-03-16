@@ -34,11 +34,11 @@ defmodule Trappist.WriteCommand do
   end
 
   def try_save(%Trappist.WriteCommand{} = cmd) do
-    res = :mnesia.transaction(fn -> 
+
+    res = :mnesia.transaction fn -> 
       Logger.debug "Writing..."
-      #:mnesia.write(table, Map.values(tupleized))
       :mnesia.write(cmd.tupleized)
-    end)
+    end
 
     case res do
       {:aborted, {:no_exists, _}} -> 
