@@ -1,91 +1,135 @@
-# defmodule Trappist.Table do
-#   require Logger
-#   defmacro __using__([name: name, attributes: atts, indexes: indexes]) do
-#     quote do
-#       import Trappist.Table
-#       @name unquote(name)
-#       @atts unquote(atts)
-#       @indexes unquote(indexes)
-#       require Logger
+defmodule Trappist.Table do
+  require Logger
+  defmacro __using__([name: name, attributes: atts, indexes: indexes]) when is_list(atts) and is_list(indexes) do
+    quote do
+      import Trappist.Table
+      @name unquote(name)
+      @atts unquote(atts)
+      @indexes unquote(indexes)
+
+      require Logger
       
-#       def attributes do
-#         @atts
-#       end
+      defstruct @atts
+      Trappist.Table.create_if_necessary(@name, @atts)
+      Trappist.Table.create_indexes(@name, @indexes)
 
-#       def save(data) do
-#         %Trappist.Command{table: @name,data_map: data} 
-#         |> set_id
-#         |> set_struct
-#         |> tupleize
-#         |> try_save
-#       end
-      
-#       def save!(data) when is_map(data) do
-#         res = save(data)
-#         case res do
-#           {:ok, saved} -> saved
-#           {:error, err} -> throw err
-#         end
-#       end
+      def attributes do
+        @atts
+      end
 
-#       def select_list do
-#         for i <- 1..length(@atts), do: "$#{i}"
-#       end
+      def save(%unquote(__CALLER__.module){} = map) do
+        tuples = tupleize(map)
+        res = :mnesia.transaction fn -> 
+          :mnesia.write(tuples)
+        end
 
-#     end
-#   end
+        case res do
+          {:ok} -> map
+          {:atomic, _} -> map
+          {:aborted, {:badarg, _} = stuff} -> 
+            Logger.error "Problem with something"
+            {:error, "There's a problem creating the table"}
+        end
+      end
 
-#   def set_id(%Trappist.Command{} = cmd) do
-#     map = cond do
-#       Map.has_key?(cmd.data_map,:id) -> cmd.data_map 
-#       true -> Map.put(cmd.data_map, :id, UUID.uuid1()) 
-#     end 
-#     %{cmd | data_map: map}
-#   end
 
-#   #TODO: Probably a better way to do this, but for now this saves a wonky
-#   #restructuring of the record at the expense of disk space... which I think 
-#   #is OK... maybe?
-#   def set_struct(%Trappist.Command{}=cmd) do
-#     map = Map.put(cmd.data_map, :zzz, cmd.data_map)
-#     %{cmd | data_map: map}
-#   end
+      def find(id) do
+        res = :mnesia.transaction fn -> 
+          :mnesia.read({@name, id})
+        end
+       
+        case res do
+          {:atomic, []} -> nil
+          {:atomic, [result_tuple]} -> result_tuple |> to_struct
+        end
+      end
 
-#   def create_table(%Trappist.Command{table_created: false} = cmd) do
-#     #get the keys
-#     keys = Map.keys(cmd.data_map) 
-#     :mnesia.create_table(cmd.table, attributes: keys, type: :ordered_set)
-#     %{cmd | table_created: true}
-#   end
+      def where(criteria) do
+        arg_list = for i <- 1..length(@atts), do: :"$#{i}"
+        tupled_arg_list = arg_list |>  List.insert_at(0, @name) |> List.to_tuple
+        criteria_keys = Keyword.keys criteria
 
-#   def tupleize(%Trappist.Command{} = cmd) do
-#     vals = cmd.data_map 
-#     |> Map.values 
-#     |> List.to_tuple 
-#     |> Tuple.insert_at(0, cmd.table)
-    
-#     %{cmd | tupleized: vals}
-#   end
+        criteria_list = for {att, i} <- Enum.with_index(@atts) do 
+          if att in criteria_keys do
+            {:==, :"$#{i+1}", Keyword.get_values(criteria,att) |> List.first}
+          end
+        end |> Enum.reject(&is_nil/1)
 
-#   def try_save(%Trappist.Command{} = cmd) do
+        res = :mnesia.transaction fn -> 
+          :mnesia.select(@name, [
+            {
+              tupled_arg_list, 
+              criteria_list, 
+              [:"$$"]
+            }
+          ])
+        end
 
-#     res = :mnesia.transaction fn -> 
-#       :mnesia.write(cmd.tupleized)
-#     end
+        case res do
+          {:atomic, []} -> []
+          {:atomic, lists} -> for l <- lists, do: l |> List.to_tuple |> to_struct
+        end
+        #:mnesia.dirty_select(:users, [{{:users, :"$1", :"$2", :"$3"}, [{:<, :"$1", 4}], [:"$$"]}]) 
+        #:mnesia.dirty_index_read(:users, "rob@conery.io", :email)
+      end
 
-#     case res do
-#       {:aborted, {:no_exists, _}} -> 
-#         Logger.debug "Table doesn't exist, creating"
-#         cmd 
-#         |> create_table
-#         |> try_save
-#       {:aborted, err} -> 
-#         Logger.error "BUMMER"
-#         IO.inspect err
-#         {:error, "Error during write"}
-#       {:atomic, result} -> 
-#         {:ok, cmd.data_map}
-#     end
-#   end
+      def search_index(idx, term) do
+        res =:mnesia.transaction fn ->
+          :mnesia.index_read @name, term, idx
+        end
+        case res do
+          {:atomic, []} -> []
+          {:atomic, tuples} -> for t <- tuples, do: to_struct(t)
+          {:aborted, _} -> "There was an error running this query. Check the name of your index."
+        end
+      end
 
-# end
+      def to_kv(%unquote(__CALLER__.module){} = map) do
+        res = []
+        #match these up with the atts
+        for att <- @atts do
+          Keyword.put_new(res, att, Map.get(map, att))
+        end |> List.flatten
+      end
+
+      def select_list do
+        for i <- 1..length(@atts), do: "$#{i}"
+      end
+
+      def tupleize(%unquote(__CALLER__.module){} = map) do
+        vals = to_kv(map)
+        |> Keyword.values
+        |> List.to_tuple 
+        |> Tuple.insert_at(0, @name)
+      end
+
+      def to_struct(tuple) do
+        stripped = tuple |> Tuple.to_list |>  List.delete_at(0)
+        map = for {att, i} <- Enum.with_index(@atts) do
+          {att, Enum.at(stripped, i)}
+        end |> Enum.into(%{})
+        struct(%unquote(__CALLER__.module){}, map)
+      end
+    end
+  end
+
+  def create_if_necessary(name, atts) do
+    # this will simply return "Already exists" if its there
+    # so no harm
+    Logger.debug "Creating table"
+    res = :mnesia.create_table name, disc_copies: [node()], attributes: atts, type: :ordered_set
+    case res do
+      {:atomic, :ok} -> Logger.info "Table created"
+      _ -> Logger.info "Table exists, skipping"
+    end
+  end
+
+  def create_indexes(name, indexes) do
+    Logger.debug "Setting indexes"
+
+    for idx <- indexes do
+      :mnesia.add_table_index(name, idx)
+    end
+  end
+
+end

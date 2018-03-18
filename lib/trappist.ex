@@ -29,7 +29,6 @@ defmodule Trappist do
       {:atomic, []} -> nil
       {:atomic, [result_tuple]} -> tuple_to_map(table, result_tuple)
         
-
     end
   end
 
