@@ -214,8 +214,9 @@ defmodule Trappist.Table do
   def create_if_necessary(name, atts) do
     # this will simply return "Already exists" if its there
     # so no harm
-    Logger.debug "Creating table"
+    Logger.debug "Creating table #{name}"
     res = :mnesia.create_table name, disc_copies: [node()], attributes: atts, type: :ordered_set
+    IO.inspect res
     case res do
       {:atomic, :ok} -> Logger.info "Table created"
       _ -> Logger.info "Table exists, skipping"
