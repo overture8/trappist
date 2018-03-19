@@ -12,7 +12,8 @@ defmodule TrappistTest do
         tips: 2,
         diameter: 4
       ],
-      index: []
+      index: [],
+      storage: :memory
     ]
   end
 
