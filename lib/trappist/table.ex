@@ -52,6 +52,9 @@ defmodule Trappist.Table do
         end
 
         case res do
+          {:aborted, {:bad_type, _}} -> 
+            Trappist.Table.alter_table @name, @atts
+            save(list)
           {:atomic, _} -> list
           _ -> {:error, "There was an error"}
         end
@@ -65,6 +68,10 @@ defmodule Trappist.Table do
         case res do
           {:ok} -> map
           {:atomic, _} -> map
+          {:aborted, {:bad_type, item}} -> 
+            Logger.warn "Looks like schema has changed"
+            Trappist.Table.alter_table(@name, @atts)
+            save(map)
           {:aborted, {:badarg, _} = stuff} -> 
             Logger.error "Problem with something"
             {:error, "There's a problem creating the table"}
@@ -221,6 +228,11 @@ defmodule Trappist.Table do
     for idx <- indexes do
       :mnesia.add_table_index(name, idx)
     end
+  end
+
+  def alter_table(name, atts) do
+    tupleized = atts |> List.insert_at(0, name) |> List.to_tuple
+    res = :mnesia.transform_table(name, fn existing -> existing end, atts)
   end
 
 end

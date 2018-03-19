@@ -9,6 +9,7 @@ defmodule TrappistTest do
       attributes: [
         id: :uuid,
         name: nil,
+        tips: 2,
         diameter: 4
       ],
       index: []
@@ -38,6 +39,7 @@ defmodule TrappistTest do
     :ok
 
   end
+
   describe "Defaults" do
     test "there is a default diameter of 0" do
       p = %Planet{}
@@ -53,7 +55,8 @@ defmodule TrappistTest do
         %Moon{name: "Moon 3"},
         %Moon{name: "Moon 4"},
         %Moon{name: "Moon 5"},
-      ] |> Moon.save |> IO.inspect 
+      ] |> Moon.save
+      assert length(res) == 5
     end
   end
 
