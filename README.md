@@ -2,6 +2,8 @@
 
 I love the idea of Mnesia, but I've always found it a bit opaque, so I made this little wrapper. If you don't know what Mnesia is - it's Erlang's built-in data store. It stores Erlang data structures (and primitives) directly, there is no type resolution required.
 
+The best part? No servers to maintain, no dependencies needed to save data (aside from this one but you know what I mean).
+
 ## Is This a Good Idea? Does Mnesia Scale?
 
 I don't know if it's a good idea, honestly. I _think_ it scales... RabbitMQ uses it for persistence as do many gigantic companies. It's incredibly fast as well, and is ACID compliant and distributed. That said, it also has a reputation for being "corruptible", which is something I'm still investigating.
