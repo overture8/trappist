@@ -1,19 +1,27 @@
 defmodule Trappist.Table do
   require Logger
   
-  defmacro __using__([name: name, attributes: atts, index: index] = opts) do
+  defmacro __using__(opts) do
+    
+    unless opts[:attributes] do
+      throw "Must have a list of attributes, such as [id: :auto, name: nil]"
+    end
+
+    atts = opts[:attributes]
+    name = opts[:name] || __CALLER__.module
+    
     quote do
       require Logger
       import Trappist.Table
-          
+      
+      @opts unquote(opts)
       @att_list unquote(atts)
       @name unquote(name)
       @atts unquote(Keyword.keys(atts))
       @defaults unquote(Keyword.values(atts))
-      @indexes unquote(index)
-      
-      Trappist.Table.create_if_necessary(@name, @atts)
-      Trappist.Table.create_indexes(@name, @indexes)
+
+      Trappist.Table.create_if_necessary(@opts)
+      Trappist.Table.create_indexes(@opts)
 
       defstruct @att_list
 
@@ -211,20 +219,39 @@ defmodule Trappist.Table do
     end
   end
 
-  def create_if_necessary(name, atts) do
+  def create_if_necessary(opts) do
     # this will simply return "Already exists" if its there
     # so no harm
+    name = opts[:name]
+    atts = opts[:attributes] |> Keyword.keys
+
+    
+    type = case opts[:type] do
+      nil -> :ordered_set
+      :bag -> :bag 
+      :set -> :set 
+      :ordered_set -> :ordered_set
+      _ -> throw "Don't know what type #{opts[:type]} is"  
+    end
+
     Logger.debug "Creating table #{name}"
-    res = :mnesia.create_table name, disc_copies: [node()], attributes: atts, type: :ordered_set
-    IO.inspect res
+
+    res = cond do
+      opts[:storage] == :memory -> :mnesia.create_table name, attributes: atts, type: type
+      true -> :mnesia.create_table name, disc_copies: [node()], attributes: atts, type: type
+    end
+    
+
     case res do
       {:atomic, :ok} -> Logger.info "Table created"
       _ -> Logger.info "Table exists, skipping"
     end
   end
 
-  def create_indexes(name, indexes) do
+  def create_indexes(opts) do
     Logger.debug "Setting indexes"
+    indexes = opts[:index] || []
+    name = opts[:name]
 
     for idx <- indexes do
       :mnesia.add_table_index(name, idx)
