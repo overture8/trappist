@@ -6,7 +6,7 @@ require Logger
 :mnesia.clear_table(:moons)
 
 
-
+:mnesia.dirty_write({:moons, 1, "Steve", 2,2})
 
 # db(:users) |> save!(id: 1, name: "Boppy", email: "test@test.com")
 # db(:users) |> save!(id: 2, name: "Xiv", email: "test1@test.com")
