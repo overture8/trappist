@@ -237,8 +237,12 @@ defmodule Trappist.Table do
     Logger.debug "Creating table #{name}"
 
     res = cond do
-      opts[:storage] == :memory -> :mnesia.create_table name, attributes: atts, type: type
-      true -> :mnesia.create_table name, disc_copies: [node()], attributes: atts, type: type
+      opts[:storage] == :memory -> 
+        Logger.debug "Creating table #{name} memory-only"
+        :mnesia.create_table name, attributes: atts, type: type
+      true -> 
+        Logger.debug "Creating table #{name} with disk persistence"
+        :mnesia.create_table name, disc_copies: [node()], attributes: atts, type: type
     end
     
 
