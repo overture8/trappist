@@ -3,35 +3,99 @@ defmodule TrappistTest do
   require Logger 
   #import Trappist
 
+  defmodule Moon do
+    use Trappist.Table, [
+      name: :moons,
+      attributes: [
+        id: :uuid,
+        name: nil,
+        diameter: 4
+      ],
+      index: []
+    ]
+  end
+
   defmodule Planet do
     use Trappist.Table, [
       name: :planets, 
       attributes: [
-        :id, 
-        :name, 
-        :diameter
+        id: :auto, 
+        name: "",
+        diameter: 0
       ], 
-      indexes: [:name]
+      index: [:name]
     ]
+
   end
 
+  setup_all do
+
+    %Planet{name: "Flipper", diameter: 12} |> Planet.save
+    %Planet{name: "Earth", diameter: 12} |> Planet.save
+    %Planet{name: "Mars", diameter: 12} |> Planet.save
+
+    %Moon{name: "Enceladus"} |> Moon.save
+    :ok
+
+  end
+  describe "Defaults" do
+    test "there is a default diameter of 0" do
+      p = %Planet{}
+      assert p.diameter == 0
+    end
+  end
+
+  describe "Bulk inserts" do
+    test "it will add 5 moons" do
+      res = moons = [
+        %Moon{name: "Moon 1"},
+        %Moon{name: "Moon 2"},
+        %Moon{name: "Moon 3"},
+        %Moon{name: "Moon 4"},
+        %Moon{name: "Moon 5"},
+      ] |> Moon.save |> IO.inspect 
+    end
+  end
+
+  describe "Counting things" do
+    test "There are 3 planets in the DB" do
+      assert Planet.count > 0
+    end
+  end
+  describe "IDs" do
+    test "First planet has ID of 1" do
+      first = :mnesia.dirty_first :planets 
+      assert first == 1
+    end
+    test "Enceladus has a GUID" do
+      moon = Moon.first 
+      assert String.length(moon.id) > 5
+    end
+  end
+  describe "Deleting things" do
+    test "First planet has ID of 1" do
+      p = %Planet{name: "Wonk"} |> Planet.save
+      res = Planet.delete(p.id)
+      assert res == :ok
+    end
+  end
   describe "Finding things" do
-    
-    setup do
-      %Planet{id: 10, name: "Flipper", diameter: 12} |> Planet.save
-      %Planet{id: 1, name: "Earth", diameter: 12} |> Planet.save
-      %Planet{id: 2, name: "Mars", diameter: 12} |> Planet.save
-
-      :ok
+  
+    test "Matches will... match" do
+      res = 
+        Planet.pattern(name: "Earth") 
+        |> Planet.match
+      
+      assert length(res) > 0
+      
     end
-
-    test "This is whack" do
-      res = Planet.find(10)
-      assert res.id == 10
+    test "Match with no pattern will return everything" do
+      res = Planet.match
+      assert length(res) > 0
     end
-    test "Data is in the DB" do
-      first = :mnesia.dirty_first :planets
-      assert first > 0
+    test "A planet is findable by id" do
+      res = Planet.find(1)
+      assert res.id == 1
     end
     test "its queryable by index" do
       res = Planet.search_index :name, "Earth"

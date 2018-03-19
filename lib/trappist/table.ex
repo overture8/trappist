@@ -1,24 +1,63 @@
 defmodule Trappist.Table do
   require Logger
-  defmacro __using__([name: name, attributes: atts, indexes: indexes]) when is_list(atts) and is_list(indexes) do
+  
+  defmacro __using__([name: name, attributes: atts, index: index] = opts) do
     quote do
-      import Trappist.Table
-      @name unquote(name)
-      @atts unquote(atts)
-      @indexes unquote(indexes)
-
       require Logger
+      import Trappist.Table
+          
+      @att_list unquote(atts)
+      @name unquote(name)
+      @atts unquote(Keyword.keys(atts))
+      @defaults unquote(Keyword.values(atts))
+      @indexes unquote(index)
       
-      defstruct @atts
       Trappist.Table.create_if_necessary(@name, @atts)
       Trappist.Table.create_indexes(@name, @indexes)
+
+      defstruct @att_list
 
       def attributes do
         @atts
       end
+      
+      def count do
+        :mnesia.table_info @name, :size
+      end
 
+      def first do
+        {:atomic, id} = :mnesia.transaction fn ->
+          :mnesia.first @name
+        end
+        find(id)
+      end
+
+      def last do
+        {:atomic, id} = :mnesia.transaction fn ->
+          :mnesia.last @name
+        end
+        find(id)
+      end
+
+      def all do
+        find(id: :"$$")
+      end
+      
+      def save(list) when is_list(list) do
+        list = for item <- list do
+          tuples = decide_id(item) |> tupleize
+        end
+        res = :mnesia.transaction fn -> 
+          for item <- list, do: :mnesia.write(item)
+        end
+
+        case res do
+          {:atomic, _} -> list
+          _ -> {:error, "There was an error"}
+        end
+      end
       def save(%unquote(__CALLER__.module){} = map) do
-        tuples = tupleize(map)
+        tuples = map |> decide_id |> tupleize
         res = :mnesia.transaction fn -> 
           :mnesia.write(tuples)
         end
@@ -32,6 +71,23 @@ defmodule Trappist.Table do
         end
       end
 
+      def decide_id(%unquote(__CALLER__.module){id: :auto} = map) do
+        new_id = :mnesia.dirty_last(@name)
+        incremented = cond do
+          new_id == :"$end_of_table" -> 1
+          true -> new_id = new_id + 1
+        end
+        %{map | id: incremented}
+      end
+
+      def decide_id(%unquote(__CALLER__.module){id: :uuid} = map) do
+        new_id = UUID.uuid1() #using this for sequentialness
+        %{map | id: new_id}
+      end
+
+      def decide_id(%unquote(__CALLER__.module){id: _} = map) do
+        map
+      end
 
       def find(id) do
         res = :mnesia.transaction fn -> 
@@ -41,6 +97,42 @@ defmodule Trappist.Table do
         case res do
           {:atomic, []} -> nil
           {:atomic, [result_tuple]} -> result_tuple |> to_struct
+        end
+      end
+      def delete(id) do
+        res = :mnesia.transaction fn -> 
+          :mnesia.delete({@name, id})
+        end
+       
+        case res do
+          {:atomic, :ok} -> :ok
+          _ -> {:error, "There was an error deleting"}
+        end
+      end
+      def pattern(args) do
+        arg_keys = Keyword.keys args
+        arg_list = for i <- 0..length(@atts) - 1 do
+          this_key = Enum.at(@atts, i)
+          cond do
+            this_key in arg_keys -> args[this_key]
+            true -> :_
+          end       
+        end
+        tupled_arg_list = arg_list |>  List.insert_at(0, @name) |> List.to_tuple
+
+      end
+
+      def match do
+        pattern([]) |> match
+      end
+
+      def match(pattern) do
+        res = :mnesia.transaction fn ->
+          :mnesia.match_object(pattern)
+        end
+        case res do
+          {:atomic, []} -> []
+          {:atomic, tuples} -> for t <- tuples, do: to_struct(t)
         end
       end
 
@@ -70,7 +162,6 @@ defmodule Trappist.Table do
           {:atomic, lists} -> for l <- lists, do: l |> List.to_tuple |> to_struct
         end
         #:mnesia.dirty_select(:users, [{{:users, :"$1", :"$2", :"$3"}, [{:<, :"$1", 4}], [:"$$"]}]) 
-        #:mnesia.dirty_index_read(:users, "rob@conery.io", :email)
       end
 
       def search_index(idx, term) do

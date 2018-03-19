@@ -4,8 +4,13 @@ require Logger
 
 
 count = :mnesia.table_info :planets, :size
+count2 = :mnesia.table_info :moons, :size
 Logger.debug "Starting tests with #{count} planets"
-#:mnesia.delete_table(:planets)
+Logger.debug "Starting tests with #{count2} moons"
+
+
+:mnesia.delete_table(:planets)
+:mnesia.delete_table(:moons)
 
 
 
