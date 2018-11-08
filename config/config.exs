@@ -2,29 +2,13 @@
 # and its dependencies with the aid of the Mix.Config module.
 use Mix.Config
 
-# This configuration is loaded before any dependency and is restricted
-# to this project. If another project depends on this project, this
-# file won't be loaded nor affect the parent project. For this reason,
-# if you want to provide default values for your application for
-# 3rd-party users, it should be done in your "mix.exs" file.
+IO.inspect("HERE")
 
-# You can configure your application as:
-#
-#     config :trappist, key: :value
-#
-# and access this configuration in your application as:
-#
-#     Application.get_env(:trappist, :key)
-#
-# You can also configure a 3rd-party app:
-#
-#     config :logger, level: :info
-#
+opts = Application.get_env(:trappist, :storage)
+dir = opts[:dir] || "/opt/mnesia"
+node = opts[:node] || [node()]
+:application.set_env(:mnesia, :dir, String.to_charlist(dir))
+:mnesia.create_schema(node)
+:mnesia.start()
 
-# It is also possible to import configuration files, relative to this
-# directory. For example, you can emulate configuration per environment
-# by uncommenting the line below and defining dev.exs, test.exs and such.
-# Configuration from the imported file will override the ones defined
-# here (which is why it is important to import them last).
-#
-import_config "#{Mix.env}.exs"
+import_config "#{Mix.env()}.exs"

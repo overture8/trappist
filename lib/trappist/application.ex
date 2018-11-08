@@ -11,14 +11,11 @@ defmodule Trappist.Application do
       # Starts a worker by calling: Trappist.Worker.start_link(arg)
       # {Trappist.Worker, arg},
     ]
-    Trappist.start
+
+    # Trappist.start()
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Trappist.Supervisor]
     Supervisor.start_link(children, opts)
   end
-
-
-
-
 end
