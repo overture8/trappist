@@ -13,6 +13,7 @@ defmodule Trappist.Application do
     ]
 
     # Trappist.start()
+
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Trappist.Supervisor]
