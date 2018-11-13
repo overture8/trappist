@@ -264,6 +264,9 @@ defmodule Trappist.Table do
   end
 
   def create_if_necessary(opts) do
+    :mnesia.create_schema([node() | Node.list()])
+    :mnesia.start()
+
     # this will simply return "Already exists" if its there
     # so no harm
     name = opts[:name]
