@@ -10,7 +10,6 @@ defmodule Trappist.Table do
 
     quote do
       import Trappist.Table
-      @on_load :init
 
       @opts unquote(opts)
       @att_list unquote(atts)
@@ -20,11 +19,8 @@ defmodule Trappist.Table do
 
       defstruct @att_list
 
-      def init do
-        Trappist.Table.create_if_necessary(@opts)
-        Trappist.Table.create_indexes(@opts)
-
-        :ok
+      def name do
+        @name
       end
 
       def attributes do
@@ -264,9 +260,6 @@ defmodule Trappist.Table do
   end
 
   def create_if_necessary(opts) do
-    :mnesia.create_schema([node() | Node.list()])
-    :mnesia.start()
-
     # this will simply return "Already exists" if its there
     # so no harm
     name = opts[:name]
