@@ -1,6 +1,4 @@
 defmodule Trappist.Command do
-  require Logger
-  
   defstruct [
     table: nil,
     raw_result: nil,
@@ -39,7 +37,6 @@ defmodule Trappist.Command do
   def try_save(%Trappist.Command{} = cmd) do
     cmd = %{cmd | attributes: Keyword.keys(cmd.list)}
     res = :mnesia.transaction fn -> 
-      #Logger.debug "Writing..."
       :mnesia.write(cmd.tupleized)
     end
 
@@ -51,7 +48,6 @@ defmodule Trappist.Command do
         |> try_save
       {:aborted, _} -> {:error, "Error during write"}
       {:atomic, result} -> 
-        #Logger.debug "Saved!"
         {:ok, Enum.into(cmd.list, %{})}
     end
   end
