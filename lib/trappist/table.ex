@@ -1,6 +1,4 @@
 defmodule Trappist.Table do
-  require Logger
-
   defmacro __using__(opts) do
     unless opts[:attributes] do
       throw("Must have a list of attributes, such as [id: :auto, name: nil]")
@@ -11,7 +9,6 @@ defmodule Trappist.Table do
     Keyword.put(opts, :data, :rand.uniform())
 
     quote do
-      require Logger
       import Trappist.Table
       @on_load :init
 
@@ -100,12 +97,10 @@ defmodule Trappist.Table do
             map
 
           {:aborted, {:bad_type, item}} ->
-            Logger.warn("Looks like schema has changed")
             Trappist.Table.alter_table(@name, @atts)
             save(map)
 
           {:aborted, {:badarg, _} = stuff} ->
-            Logger.error("Problem with something")
             {:error, "There's a problem creating the table"}
         end
       end
@@ -283,25 +278,16 @@ defmodule Trappist.Table do
         _ -> throw("Don't know what type #{opts[:type]} is")
       end
 
-    res =
-      cond do
-        opts[:storage] == :memory ->
-          Logger.debug("Creating table #{name} memory-only")
-          :mnesia.create_table(name, attributes: atts, type: type)
+    cond do
+      opts[:storage] == :memory ->
+        :mnesia.create_table(name, attributes: atts, type: type)
 
-        true ->
-          Logger.debug("Creating table #{name} with disk persistence")
-          :mnesia.create_table(name, disc_copies: [node()], attributes: atts, type: type)
-      end
-
-    case res do
-      {:atomic, :ok} -> Logger.info("Table created")
-      _ -> Logger.info("Table exists, skipping")
+      true ->
+        :mnesia.create_table(name, disc_copies: [node()], attributes: atts, type: type)
     end
   end
 
   def create_indexes(opts) do
-    Logger.debug("Setting indexes")
     indexes = opts[:index] || []
     name = opts[:name]
 
